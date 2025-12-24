@@ -9,9 +9,9 @@ services:
       POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-123}
     volumes:
       - auth-db-data:/var/lib/postgresql/data
-    networks: [innowise-net]
+    networks: [ innowise-net ]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -33,7 +33,7 @@ services:
       USER_SERVICE_URL: http://user-service:8080
     ports:
       - "8082:8082"
-    networks: [innowise-net]
+    networks: [ innowise-net ]
 
   # ===================== USER =====================
   user-postgres:
@@ -45,9 +45,9 @@ services:
       POSTGRES_PASSWORD: ${USER_POSTGRES_PASSWORD:-123}
     volumes:
       - user-pgdata:/var/lib/postgresql/data
-    networks: [innowise-net]
+    networks: [ innowise-net ]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -55,19 +55,19 @@ services:
   user-redis:
     image: redis:7-alpine
     container_name: user-redis
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
       - user-redisdata:/data
-    networks: [innowise-net]
+    networks: [ innowise-net ]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 20
 
   user-service:
     build:
-      context: User-service
+      context: ./User-Service
       dockerfile: Dockerfile
     container_name: user-service
     depends_on:
@@ -84,7 +84,7 @@ services:
       SPRING_DATA_REDIS_PORT: "6379"
     ports:
       - "8081:8080"
-    networks: [innowise-net]
+    networks: [ innowise-net ]
 
   # ===================== ORDER =====================
   order-db:
@@ -96,9 +96,9 @@ services:
       POSTGRES_PASSWORD: ${ORDER_POSTGRES_PASSWORD:-123}
     volumes:
       - order-pgdata:/var/lib/postgresql/data
-    networks: [innowise-net]
+    networks: [ innowise-net ]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -119,13 +119,14 @@ services:
       USER_SERVICE_BASE_URL: http://user-service:8080/api/users
     ports:
       - "8083:8083"
-    networks: [innowise-net]
+    networks: [ innowise-net ]
 
   # ===================== GATEWAY =====================
   api-gateway:
     build:
-      context: API-Gateway-Service
+      context: ./API-Gateway
       dockerfile: Dockerfile
+
     container_name: api-gateway
     depends_on:
       - auth-service
@@ -139,7 +140,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-super_long_random_secret_key_at_least_32_chars}
     ports:
       - "8084:8084"
-    networks: [innowise-net]
+    networks: [ innowise-net ]
 
 volumes:
   auth-db-data:
