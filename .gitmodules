@@ -1,0 +1,16 @@
+[submodule "Authentication-Service"]
+	path = Authentication-Service
+	url = https://github.com/CountryBoy0ner/Authentication-Service.git
+	branch = develop
+[submodule "User-Service"]
+	path = User-Service
+	url = https://github.com/CountryBoy0ner/User-Service.git
+	branch = develop
+[submodule "Order-Service"]
+	path = Order-Service
+	url = https://github.com/CountryBoy0ner/Order-Service.git
+	branch = develop
+[submodule "API-Gateway"]
+	path = API-Gateway
+	url = https://github.com/CountryBoy0ner/API-Gateway.git
+	branch = develop
