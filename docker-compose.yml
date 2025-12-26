@@ -35,6 +35,7 @@ services:
       - "8082:8082"
     networks: [ innowise-net ]
 
+
   # ===================== USER =====================
   user-postgres:
     image: postgres:16-alpine
@@ -86,6 +87,62 @@ services:
       - "8081:8080"
     networks: [ innowise-net ]
 
+
+  # ===================== KAFKA (shared) =====================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks: [ innowise-net ]
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      # внутри docker-сети: kafka:9092
+      - "9092:9092"
+      # с хоста (если вдруг будешь подключаться утилитами): localhost:29092
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # удобно на деве
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks: [ innowise-net ]
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8089:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    networks: [ innowise-net ]
+
+
   # ===================== ORDER =====================
   order-db:
     image: postgres:16-alpine
@@ -111,42 +168,94 @@ services:
     depends_on:
       order-db:
         condition: service_healthy
+      kafka:
+        condition: service_started
     environment:
       SERVER_PORT: "8083"
       SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/${ORDER_POSTGRES_DB:-orders}
       SPRING_DATASOURCE_USERNAME: ${ORDER_POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${ORDER_POSTGRES_PASSWORD:-123}
+
       USER_SERVICE_BASE_URL: http://user-service:8080/api/users
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8083:8083"
     networks: [ innowise-net ]
+
+
+  # ===================== PAYMENT =====================
+  payment-db:
+    image: postgres:16-alpine
+    container_name: payment-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PAYMENT_POSTGRES_DB:-payment_db}
+      POSTGRES_USER: ${PAYMENT_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${PAYMENT_POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - payment-pgdata:/var/lib/postgresql/data
+    networks: [ innowise-net ]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  payment-service:
+    build:
+      context: Payment-Service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    restart: unless-stopped
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      SERVER_PORT: "8085"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-db:5432/${PAYMENT_POSTGRES_DB:-payment_db}
+      SPRING_DATASOURCE_USERNAME: ${PAYMENT_POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${PAYMENT_POSTGRES_PASSWORD:-postgres}
+
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+
+      EXTERNAL_RANDOM_URL: ${EXTERNAL_RANDOM_URL:-https://www.randomnumberapi.com/api/v1.0/random?min=1&max=100&count=1}
+    ports:
+      - "8085:8085"
+    networks: [ innowise-net ]
+
 
   # ===================== GATEWAY =====================
   api-gateway:
     build:
       context: ./API-Gateway
       dockerfile: Dockerfile
-
     container_name: api-gateway
     depends_on:
       - auth-service
       - user-service
       - order-service
+      - payment-service
     environment:
       SERVER_PORT: "8084"
       AUTH_URL: "http://auth-service:8082"
       USER_URL: "http://user-service:8080"
       ORDER_URL: "http://order-service:8083"
+      PAYMENT_URL: "http://payment-service:8085"
       JWT_SECRET: ${JWT_SECRET:-super_long_random_secret_key_at_least_32_chars}
     ports:
       - "8084:8084"
     networks: [ innowise-net ]
+
 
 volumes:
   auth-db-data:
   user-pgdata:
   user-redisdata:
   order-pgdata:
+  payment-pgdata:
 
 networks:
   innowise-net:
