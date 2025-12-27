@@ -1,0 +1,37 @@
+# k8s/kustomization.yaml
+# Run:
+#   kubectl apply -k k8s
+# Remove:
+#   kubectl delete -k k8s
+#
+# Put your manifests in:
+#   k8s/infra
+#   k8s/services
+#   k8s/ingress
+# and your env files in:
+#   k8s/env
+
+resources:
+  - infra
+  - services
+  - ingress
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+secretGenerator:
+  - name: jwt-secret
+    envs:
+      - env/jwt.env
+  - name: auth-db-secret
+    envs:
+      - env/auth-db.env
+  - name: user-db-secret
+    envs:
+      - env/user-db.env
+  - name: order-db-secret
+    envs:
+      - env/order-db.env
+  - name: payment-secret
+    envs:
+      - env/payment.env

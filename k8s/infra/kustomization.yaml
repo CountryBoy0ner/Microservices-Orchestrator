@@ -1,0 +1,3 @@
+resources:
+  - zookeeper.yaml
+  - kafka.yaml

@@ -36,7 +36,8 @@ Typical locations:
 - OpenAPI JSON: `http://localhost:<service-port>/v3/api-docs`
 
 (Exact paths/ports depend on the service configuration.)
-
+API-Gateway Does not have its own specification!
+---
 ## Quick start (Docker Compose)
 
 From the repository root:
@@ -51,17 +52,40 @@ docker compose logs -f
 # Stop and remove containers
 docker compose down
 ```
+---
+# Quick start (k8s)
+## Prerequisites
+- `kubectl`
+- `minikube`
+- Ingress NGINX enabled (once):
+  - `minikube addons enable ingress`
 
-### Ports (default)
+## Env files (required)
+Fill these files (do **not** commit real secrets):
+- `k8s/env/jwt.env`
+- `k8s/env/auth-db.env`
+- `k8s/env/user-db.env`
+- `k8s/env/order-db.env`
+- `k8s/env/payment.env`
 
-- Authentication-Service: `8082`
-- User-Service: `8081` (mapped to container `8080`)
-- Order-Service: `8083`
-- API-Gateway: `8084`
 
-## Update submodules
-
-```bash
-git pull
-git submodule update --init --recursive
+## Start the whole cluster (one command)
+From repo root:
+```powershell
+kubectl apply -k .\k8s
 ```
+
+## Check:
+```
+kubectl get pods -w
+kubectl get svc
+kubectl get ingress
+```
+
+
+## Stop / remove everything
+```
+kubectl delete -k .\k8s
+```
+
+

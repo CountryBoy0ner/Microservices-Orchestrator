@@ -4,5 +4,5 @@
 .env
 .env.*
 !.env.example
-
-
+/k8s/env/*
+!/k8s/env/example

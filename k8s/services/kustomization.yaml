@@ -1,0 +1,15 @@
+resources:
+  - auth-db.yaml
+  - auth-service.yaml
+
+  - user-postgres.yaml
+  - user-redis.yaml
+  - user-service.yaml
+
+  - order-db.yaml
+  - order-service.yaml
+
+  - payment-mongo.yaml
+  - payment-service.yaml
+
+  - api-gateway.yaml

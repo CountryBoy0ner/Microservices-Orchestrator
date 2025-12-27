@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  labels:
+    app: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      initContainers:
+        - name: wait-for-deps
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              until nc -z -w 2 payment-mongo 27017; do echo "waiting for payment-mongo:27017"; sleep 2; done
+              until nc -z -w 2 kafka 9092; do echo "waiting for kafka:9092"; sleep 2; done
+
+      containers:
+        - name: payment-service
+          image: ghcr.io/countryboy0ner/payment-service-payment-service:sha-2a94d51
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8085
+
+          env:
+            - name: SERVER_PORT
+              value: "8085"
+
+            # Mongo
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://payment-mongo:27017/payment_db"
+
+            # Liquibase Mongo (если нужно отдельно)
+            - name: APP_LIQUIBASE_URL
+              value: "mongodb://payment-mongo:27017/payment_db"
+
+            # Kafka
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+
+            # External
+            - name: EXTERNAL_RANDOM_URL
+              value: "https://www.randomnumberapi.com/api/v1.0/random?min=1&max=100&count=1"
+
+            # Topics (под твои properties app.kafka.topics.*)
+            - name: APP_KAFKA_TOPICS_CREATE_ORDER
+              value: "create-order"
+            - name: APP_KAFKA_TOPICS_CREATE_PAYMENT
+              value: "create-payment"
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8085
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  labels:
+    app: payment-service
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-service
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
