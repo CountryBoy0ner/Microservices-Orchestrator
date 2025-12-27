@@ -1,3 +1,4 @@
+version: "3.8"
 services:
   # ===================== AUTH =====================
   auth-db:
@@ -184,22 +185,18 @@ services:
 
 
   # ===================== PAYMENT =====================
-  payment-db:
-    image: postgres:16-alpine
-    container_name: payment-db
+  payment-mongo:
+    image: mongo:7.0
+    container_name: payment-mongo
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${PAYMENT_POSTGRES_DB:-payment_db}
-      POSTGRES_USER: ${PAYMENT_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${PAYMENT_POSTGRES_PASSWORD:-postgres}
     volumes:
-      - payment-pgdata:/var/lib/postgresql/data
+      - payment-mongo-data:/data/db
     networks: [ innowise-net ]
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      test: [ "CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' localhost:27017/test | grep 1" ]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30
 
   payment-service:
     build:
@@ -208,19 +205,15 @@ services:
     container_name: payment-service
     restart: unless-stopped
     depends_on:
-      payment-db:
+      payment-mongo:
         condition: service_healthy
       kafka:
         condition: service_started
     environment:
       SERVER_PORT: "8085"
-      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-db:5432/${PAYMENT_POSTGRES_DB:-payment_db}
-      SPRING_DATASOURCE_USERNAME: ${PAYMENT_POSTGRES_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${PAYMENT_POSTGRES_PASSWORD:-postgres}
-
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-
-
+      SPRING_DATA_MONGODB_URI: "mongodb://payment-mongo:27017/payment_db"
+      APP_LIQUIBASE_URL: "mongodb://payment-mongo:27017/payment_db"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       EXTERNAL_RANDOM_URL: ${EXTERNAL_RANDOM_URL:-https://www.randomnumberapi.com/api/v1.0/random?min=1&max=100&count=1}
     ports:
       - "8085:8085"
@@ -255,7 +248,7 @@ volumes:
   user-pgdata:
   user-redisdata:
   order-pgdata:
-  payment-pgdata:
+  payment-mongo-data:
 
 networks:
   innowise-net:
