@@ -1,13 +1,14 @@
 version: "3.8"
+
 services:
   # ===================== AUTH =====================
   auth-db:
     image: postgres:16-alpine
     container_name: auth-db
     environment:
-      POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_service}
-      POSTGRES_USER: ${AUTH_DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-123}
+      POSTGRES_DB: ${AUTH_POSTGRES_DB}
+      POSTGRES_USER: ${AUTH_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD}
     volumes:
       - auth-db-data:/var/lib/postgresql/data
     networks: [ innowise-net ]
@@ -26,14 +27,14 @@ services:
       auth-db:
         condition: service_healthy
     environment:
-      SERVER_PORT: "8082"
-      DB_URL: jdbc:postgresql://auth-db:5432/${AUTH_POSTGRES_DB:-auth_service}
-      DB_USERNAME: ${AUTH_DB_USERNAME:-postgres}
-      DB_PASSWORD: ${AUTH_DB_PASSWORD:-123}
-      JWT_SECRET: ${JWT_SECRET:-super_long_random_secret_key_at_least_32_chars}
-      USER_SERVICE_URL: http://user-service:8080
+      SERVER_PORT: ${AUTH_PORT}
+      DB_URL: jdbc:postgresql://auth-db:5432/${AUTH_POSTGRES_DB}
+      DB_USERNAME: ${AUTH_POSTGRES_USER}
+      DB_PASSWORD: ${AUTH_POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
     ports:
-      - "8082:8082"
+      - "${AUTH_PORT}:${AUTH_PORT}"
     networks: [ innowise-net ]
 
 
@@ -42,9 +43,9 @@ services:
     image: postgres:16-alpine
     container_name: user-postgres
     environment:
-      POSTGRES_DB: ${USER_POSTGRES_DB:-user_service}
-      POSTGRES_USER: ${USER_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${USER_POSTGRES_PASSWORD:-123}
+      POSTGRES_DB: ${USER_POSTGRES_DB}
+      POSTGRES_USER: ${USER_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${USER_POSTGRES_PASSWORD}
     volumes:
       - user-pgdata:/var/lib/postgresql/data
     networks: [ innowise-net ]
@@ -78,14 +79,14 @@ services:
       user-redis:
         condition: service_healthy
     environment:
-      SERVER_PORT: "8080"
-      SPRING_DATASOURCE_URL: jdbc:postgresql://user-postgres:5432/${USER_POSTGRES_DB:-user_service}
-      SPRING_DATASOURCE_USERNAME: ${USER_POSTGRES_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${USER_POSTGRES_PASSWORD:-123}
-      SPRING_DATA_REDIS_HOST: user-redis
-      SPRING_DATA_REDIS_PORT: "6379"
+      SERVER_PORT: ${USER_PORT}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-postgres:5432/${USER_POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${USER_POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${USER_POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: ${USER_REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${USER_REDIS_PORT}
     ports:
-      - "8081:8080"
+      - "8081:${USER_PORT}"
     networks: [ innowise-net ]
 
 
@@ -108,25 +109,19 @@ services:
     depends_on:
       - zookeeper
     ports:
-      # внутри docker-сети: kafka:9092
       - "9092:9092"
-      # с хоста (если вдруг будешь подключаться утилитами): localhost:29092
       - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-
       KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092"
       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
       KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-
-      # удобно на деве
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     networks: [ innowise-net ]
 
@@ -149,9 +144,9 @@ services:
     image: postgres:16-alpine
     container_name: order-db
     environment:
-      POSTGRES_DB: ${ORDER_POSTGRES_DB:-orders}
-      POSTGRES_USER: ${ORDER_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${ORDER_POSTGRES_PASSWORD:-123}
+      POSTGRES_DB: ${ORDER_POSTGRES_DB}
+      POSTGRES_USER: ${ORDER_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${ORDER_POSTGRES_PASSWORD}
     volumes:
       - order-pgdata:/var/lib/postgresql/data
     networks: [ innowise-net ]
@@ -172,15 +167,14 @@ services:
       kafka:
         condition: service_started
     environment:
-      SERVER_PORT: "8083"
-      SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/${ORDER_POSTGRES_DB:-orders}
-      SPRING_DATASOURCE_USERNAME: ${ORDER_POSTGRES_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${ORDER_POSTGRES_PASSWORD:-123}
-
-      USER_SERVICE_BASE_URL: http://user-service:8080/api/users
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVER_PORT: ${ORDER_PORT}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/${ORDER_POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${ORDER_POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${ORDER_POSTGRES_PASSWORD}
+      USER_SERVICE_BASE_URL: ${USER_SERVICE_BASE_URL}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
     ports:
-      - "8083:8083"
+      - "${ORDER_PORT}:${ORDER_PORT}"
     networks: [ innowise-net ]
 
 
@@ -210,13 +204,13 @@ services:
       kafka:
         condition: service_started
     environment:
-      SERVER_PORT: "8085"
-      SPRING_DATA_MONGODB_URI: "mongodb://payment-mongo:27017/payment_db"
-      APP_LIQUIBASE_URL: "mongodb://payment-mongo:27017/payment_db"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      EXTERNAL_RANDOM_URL: ${EXTERNAL_RANDOM_URL:-https://www.randomnumberapi.com/api/v1.0/random?min=1&max=100&count=1}
+      SERVER_PORT: ${PAYMENT_PORT}
+      SPRING_DATA_MONGODB_URI: ${PAYMENT_MONGO_URI}
+      APP_LIQUIBASE_URL: ${PAYMENT_LIQUIBASE_URL}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      EXTERNAL_RANDOM_URL: ${EXTERNAL_RANDOM_URL}
     ports:
-      - "8085:8085"
+      - "${PAYMENT_PORT}:${PAYMENT_PORT}"
     networks: [ innowise-net ]
 
 
@@ -232,14 +226,14 @@ services:
       - order-service
       - payment-service
     environment:
-      SERVER_PORT: "8084"
-      AUTH_URL: "http://auth-service:8082"
-      USER_URL: "http://user-service:8080"
-      ORDER_URL: "http://order-service:8083"
-      PAYMENT_URL: "http://payment-service:8085"
-      JWT_SECRET: ${JWT_SECRET:-super_long_random_secret_key_at_least_32_chars}
+      SERVER_PORT: ${GATEWAY_PORT}
+      AUTH_URL: ${AUTH_URL}
+      USER_URL: ${USER_SERVICE_URL}
+      ORDER_URL: ${ORDER_URL}
+      PAYMENT_URL: ${PAYMENT_URL}
+      JWT_SECRET: ${JWT_SECRET}
     ports:
-      - "8084:8084"
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
     networks: [ innowise-net ]
 
 
